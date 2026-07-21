@@ -95,8 +95,47 @@ export async function onRequest(context) {
 
     // 2. POST /api/saveVisit
     if (path === '/api/saveVisit' && method === 'POST') {
-      const v = await request.json();
-      const photosStr = Array.isArray(v.photos) ? JSON.stringify(v.photos) : '[]';
+      const rawVisit = await request.json();
+      
+      // Sanitizer to convert undefined or null properties to safe DB values
+      const sanitize = (val, defaultVal = '') => (val === undefined || val === null) ? defaultVal : val;
+      
+      const v = {
+        id: sanitize(rawVisit.id),
+        patientTitle: sanitize(rawVisit.patientTitle),
+        patientFirstname: sanitize(rawVisit.patientFirstname),
+        patientLastname: sanitize(rawVisit.patientLastname),
+        patientAge: sanitize(rawVisit.patientAge, 0),
+        addressNo: sanitize(rawVisit.addressNo, '-'),
+        addressMoo: sanitize(rawVisit.addressMoo),
+        addressSubdistrict: sanitize(rawVisit.addressSubdistrict, '-'),
+        addressDistrict: sanitize(rawVisit.addressDistrict, '-'),
+        addressProvince: sanitize(rawVisit.addressProvince, '-'),
+        addressZip: sanitize(rawVisit.addressZip, '-'),
+        visitDate: sanitize(rawVisit.visitDate),
+        visitTimeStart: sanitize(rawVisit.visitTimeStart, '00:00'),
+        visitTimeEnd: sanitize(rawVisit.visitTimeEnd, '00:00'),
+        visitDuration: sanitize(rawVisit.visitDuration, 0),
+        careDetails: sanitize(rawVisit.careDetails),
+        careActivities: sanitize(rawVisit.careActivities),
+        bpSystolic: sanitize(rawVisit.bpSystolic, 120),
+        bpDiastolic: sanitize(rawVisit.bpDiastolic, 80),
+        bpAnalysis: sanitize(rawVisit.bpAnalysis, 'ปกติ'),
+        healthSymptoms: sanitize(rawVisit.healthSymptoms),
+        healthProblems: sanitize(rawVisit.healthProblems),
+        requestedItems: sanitize(rawVisit.requestedItems),
+        healthRemarks: sanitize(rawVisit.healthRemarks),
+        cgTitle: sanitize(rawVisit.cgTitle),
+        cgFirstname: sanitize(rawVisit.cgFirstname),
+        cgLastname: sanitize(rawVisit.cgLastname),
+        cgUsername: sanitize(rawVisit.cgUsername),
+        gpsLat: sanitize(rawVisit.gpsLat),
+        gpsLng: sanitize(rawVisit.gpsLng),
+        photos: rawVisit.photos || [],
+        lastUpdated: sanitize(rawVisit.lastUpdated, new Date().toISOString())
+      };
+
+      const photosStr = JSON.stringify(v.photos);
 
       const sql = `INSERT INTO visits (
         id, patientTitle, patientFirstname, patientLastname, patientAge,
@@ -140,7 +179,12 @@ export async function onRequest(context) {
                    VALUES (?, ?, ?, ?)
                    ON CONFLICT(username) DO UPDATE SET 
                    fullname=excluded.fullname, password=excluded.password, role=excluded.role`;
-      await env.DB.prepare(sql).bind(s.username, s.fullname, s.password, s.role).run();
+      await env.DB.prepare(sql).bind(
+        s.username || '', 
+        s.fullname || '', 
+        s.password || '', 
+        s.role || 'cg'
+      ).run();
       return jsonResponse({ status: 'success' });
     }
 
@@ -155,7 +199,13 @@ export async function onRequest(context) {
     if (path === '/api/saveLog' && method === 'POST') {
       const l = await request.json();
       const sql = `INSERT INTO logs (id, timestamp, user, event, target) VALUES (?, ?, ?, ?, ?)`;
-      await env.DB.prepare(sql).bind(l.id, l.timestamp, l.user, l.event, l.target).run();
+      await env.DB.prepare(sql).bind(
+        l.id || '', 
+        l.timestamp || new Date().toISOString(), 
+        l.user || '', 
+        l.event || '', 
+        l.target || ''
+      ).run();
       return jsonResponse({ status: 'success' });
     }
 
