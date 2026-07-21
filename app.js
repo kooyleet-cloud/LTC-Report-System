@@ -2063,9 +2063,20 @@ ${record.requestedItems ? `📦 สิ่งของที่ต้องกา
       const fullName = `${v.patientTitle || ''}${v.patientFirstname || ''} ${v.patientLastname || ''}`.toLowerCase();
       if (searchVal && !fullName.includes(searchVal)) return false;
 
+      // 2. กรองเฉพาะบันทึกการเยี่ยมที่มีการแนบไฟล์ PDF Care Plan เท่านั้น
+      const hasPdf = (v.photos || []).some(p => !this.getFileTypeFromBase64(p).isImage);
+      if (!hasPdf) {
+        // ค้นหาว่าในประวัติของผู้ป่วยรายนี้มีเรคคอร์ดอื่นๆ ที่มี PDF แนบอยู่หรือไม่
+        const hasMatchPdf = this.state.visits.some(pv => 
+          pv.patientFirstname.trim().toLowerCase() === v.patientFirstname.trim().toLowerCase() &&
+          pv.patientLastname.trim().toLowerCase() === v.patientLastname.trim().toLowerCase() &&
+          (pv.photos || []).some(p => !this.getFileTypeFromBase64(p).isImage)
+        );
+        if (!hasMatchPdf) return false;
+      }
+
       return true;
     });
-
     if (filtered.length === 0) {
       emptyState.classList.remove('hidden');
       return;
@@ -2073,7 +2084,18 @@ ${record.requestedItems ? `📦 สิ่งของที่ต้องกา
 
     emptyState.classList.add('hidden');
 
+    // ยุบรวมให้เหลือ 1 แถวต่อ 1 ผู้ป่วยที่ไม่ซ้ำกัน
+    const uniquePatients = [];
+    const seen = new Set();
     filtered.forEach(v => {
+      const key = `${v.patientFirstname.trim().toLowerCase()}_${v.patientLastname.trim().toLowerCase()}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniquePatients.push(v);
+      }
+    });
+
+    uniquePatients.forEach(v => {
       const tr = document.createElement('tr');
       tr.className = 'hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition duration-150 border-b border-slate-100 dark:border-slate-800';
 
