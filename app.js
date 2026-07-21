@@ -2019,6 +2019,15 @@ ${record.requestedItems ? `📦 สิ่งของที่ต้องกา
           </td>
         `;
       } else {
+        const isMyRecord = this.state.currentUser && v.cgUsername === this.state.currentUser.username;
+        const actionButtons = isMyRecord ? `
+          <button onclick="app.showReportDetailModal('${v.id}')" title="ดูรายละเอียดแบบพิมพ์รายงาน" class="bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 p-2 rounded-lg transition"><i class="fa-regular fa-eye"></i></button>
+          <button onclick="app.openLTCForm('${v.id}')" title="แก้ไขข้อมูลรายงาน" class="bg-amber-50 hover:bg-amber-100 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400 p-2 rounded-lg transition"><i class="fa-solid fa-pen-to-square"></i></button>
+          <button onclick="app.deleteVisitRecord('${v.id}')" title="ลบข้อมูลบันทึก" class="bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-455 p-2 rounded-lg transition"><i class="fa-regular fa-trash-can"></i></button>
+        ` : `
+          <button onclick="app.showReportDetailModal('${v.id}')" title="ดูรายละเอียดแบบพิมพ์รายงาน" class="bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 p-2 rounded-lg transition"><i class="fa-regular fa-eye"></i></button>
+        `;
+
         tr.innerHTML = `
           <td class="p-4">
             <div class="font-bold text-slate-900 dark:text-white">${patientName}</div>
@@ -2036,7 +2045,7 @@ ${record.requestedItems ? `📦 สิ่งของที่ต้องกา
             <div>${this.getBPLevelBadge(v.bpSystolic, v.bpDiastolic)}</div>
           </td>
           <td class="p-4 text-right space-x-1 whitespace-nowrap">
-            <button onclick="app.showReportDetailModal('${v.id}')" title="ดูรายละเอียดแบบพิมพ์รายงาน" class="bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 p-2 rounded-lg transition"><i class="fa-regular fa-eye"></i></button>
+            ${actionButtons}
           </td>
         `;
       }
