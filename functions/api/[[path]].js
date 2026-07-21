@@ -35,7 +35,7 @@ export async function onRequest(context) {
   try {
     const tableCheck = await env.DB.prepare(
       "SELECT name FROM sqlite_master WHERE type='table' AND name='visits'"
-    ).get();
+    ).first();
     
     if (!tableCheck) {
       const schemaSql = `
