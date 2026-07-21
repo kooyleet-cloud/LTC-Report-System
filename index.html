@@ -1,0 +1,1299 @@
+<!DOCTYPE html>
+<html lang="th" class="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบรายงานการดูแลระยะยาว LTC (Long Term Care)</title>
+  <!-- SEO & Meta Tags -->
+  <meta name="description" content="ระบบบันทึกและรายงานข้อมูลการดูแลผู้สูงอายุระยะยาว LTC สำหรับเจ้าหน้าที่และอาสาสมัคร CG">
+  <!-- CSS Stylesheets -->
+  <link rel="stylesheet" href="style.css">
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <!-- Leaflet CSS for Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <!-- Tailwind CSS CDN with configuration -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: '#f0f5ff',
+              100: '#e0ebff',
+              600: '#2563eb',
+              800: '#1e40af',
+              900: '#1e3a8a', // กรมท่า
+              950: '#0f172a', // กรมท่าเข้ม
+            },
+            secondary: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              500: '#0ea5e9', // ฟ้า
+              600: '#0284c7',
+              700: '#0369a1',
+            }
+          },
+          fontFamily: {
+            sans: ['Sarabun', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-200 transition-colors duration-200 min-h-screen flex flex-col">
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none max-w-sm w-full px-4"></div>
+
+  <!-- Loading Animation Overlay -->
+  <div id="loading-overlay" class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[9998] hidden flex-col items-center justify-center">
+    <div class="relative flex items-center justify-center">
+      <div class="animate-spin rounded-full h-16 w-16 border-4 border-secondary-100 border-t-secondary-500"></div>
+      <i class="fa-solid fa-heart-pulse text-secondary-500 text-xl absolute animate-pulse"></i>
+    </div>
+    <p class="text-white mt-4 font-semibold text-lg" id="loading-text">กำลังประมวลผลข้อมูล...</p>
+  </div>
+
+  <!-- Authenticated App Container (Hidden by default) -->
+  <div id="app-container" class="hidden flex-1 flex flex-col md:flex-row min-h-screen">
+    
+    <!-- Sidebar Navigation (Desktop) -->
+    <aside class="hidden md:flex flex-col w-64 bg-primary-900 dark:bg-slate-900 text-white shrink-0 shadow-lg border-r border-primary-950/20">
+      <!-- Sidebar Header / Brand -->
+      <div class="p-6 border-b border-primary-800 dark:border-slate-800 flex items-center space-x-3">
+        <div class="bg-white/10 p-2 rounded-lg text-secondary-500 dark:text-secondary-100">
+          <i class="fa-solid fa-house-medical text-2xl"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-lg leading-tight">LTC Report</h1>
+          <span class="text-xs text-slate-300">ระบบรายงานดูแลระยะยาว</span>
+        </div>
+      </div>
+
+      <!-- Navigation Links -->
+      <nav class="flex-1 px-4 py-6 space-y-1">
+        <a href="#" data-view="dashboard" class="nav-link flex items-center px-4 py-3 rounded-lg text-slate-100 hover:bg-white/10 transition duration-150">
+          <i class="fa-solid fa-chart-line w-6 text-lg text-secondary-500"></i>
+          <span>หน้าหลัก / แผงสถิติ</span>
+        </a>
+        <a href="#" data-view="ltc-form" class="nav-link flex items-center px-4 py-3 rounded-lg text-slate-100 hover:bg-white/10 transition duration-150">
+          <i class="fa-solid fa-file-signature w-6 text-lg text-secondary-500"></i>
+          <span>บันทึกการเยี่ยมบ้าน</span>
+        </a>
+        <a href="#" data-view="careplan" id="nav-careplan-link" class="nav-link hidden flex items-center px-4 py-3 rounded-lg text-slate-100 hover:bg-white/10 transition duration-150">
+          <i class="fa-solid fa-file-medical w-6 text-lg text-secondary-500"></i>
+          <span>เอกสาร Care plan</span>
+        </a>
+        <a href="#" data-view="admin" id="nav-admin-link" class="nav-link hidden flex items-center px-4 py-3 rounded-lg text-slate-100 hover:bg-white/10 transition duration-150">
+          <i class="fa-solid fa-users-gear w-6 text-lg text-secondary-500"></i>
+          <span>จัดการบัญชีเจ้าหน้าที่</span>
+        </a>
+        <a href="#" data-view="logs" id="nav-logs-link" class="nav-link hidden flex items-center px-4 py-3 rounded-lg text-slate-100 hover:bg-white/10 transition duration-150">
+          <i class="fa-solid fa-clock-rotate-left w-6 text-lg text-secondary-500"></i>
+          <span>ประวัติแก้ไขระบบ</span>
+        </a>
+      </nav>
+
+      <!-- User Profile Card in Sidebar Footer -->
+      <div class="p-4 border-t border-primary-800 dark:border-slate-800 bg-primary-950/40 dark:bg-slate-950/40">
+        <div class="flex items-center space-x-3 mb-3">
+          <div class="bg-secondary-500 text-white w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg shadow-inner" id="user-avatar-desktop">
+            CG
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold truncate text-white" id="user-name-desktop">ชื่อเจ้าหน้าที่</p>
+            <p class="text-xs text-slate-300 capitalize truncate" id="user-role-desktop">ผู้ใช้ทั่วไป</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="app.openProfileModal()" class="text-xs bg-white/10 hover:bg-white/20 text-white py-1.5 px-2 rounded transition text-center flex items-center justify-center gap-1">
+            <i class="fa-solid fa-user-pen"></i> โปรไฟล์
+          </button>
+          <button onclick="app.logout()" class="text-xs bg-red-600/80 hover:bg-red-600 text-white py-1.5 px-2 rounded transition text-center flex items-center justify-center gap-1">
+            <i class="fa-solid fa-right-from-bracket"></i> ออกระบบ
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <div class="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      <!-- Top Bar Header (Mobile & Desktop) -->
+      <header class="bg-white dark:bg-slate-900 shadow-sm px-6 py-4 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
+        <!-- Logo / Sidebar Toggle for Mobile -->
+        <div class="flex items-center space-x-3">
+          <div class="bg-primary-900 text-white p-2 rounded-lg md:hidden">
+            <i class="fa-solid fa-house-medical text-lg"></i>
+          </div>
+          <span class="font-bold text-lg text-primary-900 dark:text-white md:hidden">LTC Report</span>
+          <span class="hidden md:block font-bold text-xl text-primary-900 dark:text-white" id="page-title-display">ยินดีต้อนรับ</span>
+        </div>
+
+        <!-- System Controls (Dark Mode, Database status) -->
+        <div class="flex items-center space-x-4">
+          <!-- DB status label -->
+          <div id="db-status-bar" class="hidden sm:flex items-center space-x-2 text-xs bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 px-2.5 py-1 rounded-full border border-emerald-100 dark:border-emerald-900">
+            <span class="h-2 w-2 rounded-full bg-emerald-500 animate-ping"></span>
+            <span class="font-medium" id="db-status-text">Local Database Mode</span>
+          </div>
+
+          <!-- Theme Toggle Switch -->
+          <div class="flex items-center space-x-2">
+            <i class="fa-regular fa-sun text-amber-500 text-sm"></i>
+            <div onclick="app.toggleTheme()" class="dark-theme-toggle">
+              <div class="dark-theme-toggle-dot"></div>
+            </div>
+            <i class="fa-regular fa-moon text-indigo-400 text-sm"></i>
+          </div>
+
+          <!-- Mobile Profile & Logout (visible only on mobile) -->
+          <div class="flex items-center space-x-1 md:hidden border-l border-slate-200 dark:border-slate-800 pl-3">
+            <button onclick="app.openProfileModal()" class="p-1.5 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition focus:outline-none" title="โปรไฟล์">
+              <i class="fa-solid fa-user-gear text-base"></i>
+            </button>
+            <button onclick="app.logout()" class="p-1.5 text-rose-500 hover:text-rose-600 transition focus:outline-none" title="ออกจากระบบ">
+              <i class="fa-solid fa-right-from-bracket text-base"></i>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main Screens Wrapper -->
+      <main class="flex-1 p-4 md:p-6 pb-24 md:pb-6">
+        
+        <!-- ==================== SCREEN: DASHBOARD & STATS ==================== -->
+        <section id="view-dashboard" class="view-panel animate-fade-in space-y-6">
+          <!-- Welcome and Quick Info -->
+          <div class="bg-gradient-to-r from-primary-900 to-secondary-600 rounded-2xl p-6 text-white shadow-md relative overflow-hidden">
+            <div class="relative z-10 space-y-2">
+              <h2 class="text-xl md:text-2xl font-bold">ระบบบริหารจัดการรายงานการดูแลระยะยาว LTC</h2>
+              <p class="text-slate-100 text-sm max-w-xl">เข้าถึงสถิติการเยี่ยมบ้านผู้สูงอายุ บันทึกประวัติการดูแล ตรวจวิเคราะห์สุขภาพเบื้องต้น และจัดการข้อมูลเจ้าหน้าที่อย่างเป็นระบบ</p>
+            </div>
+            <i class="fa-solid fa-notes-medical text-9xl absolute right-4 -bottom-6 text-white/10 pointer-events-none"></i>
+          </div>
+
+          <!-- KPI Summary Cards (Admin) -->
+          <div id="stats-container-admin" class="grid grid-cols-2 lg:grid-cols-6 gap-4">
+            <!-- Card 1: Patients Count -->
+            <div class="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+              <div class="flex justify-between items-start">
+                <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">จำนวนผู้มีภาวะพึ่งพิง/Care plan</span>
+                <span class="p-1.5 bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-300 rounded-lg"><i class="fa-solid fa-users"></i></span>
+              </div>
+              <div class="mt-4">
+                <span class="text-2xl font-extrabold" id="stat-total-patients">0</span>
+                <span class="text-xs text-slate-400 ml-1">ราย</span>
+              </div>
+            </div>
+            <!-- Card 2: Total Visits -->
+            <div class="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+              <div class="flex justify-between items-start">
+                <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">จำนวนครั้งการเยี่ยม</span>
+                <span class="p-1.5 bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-300 rounded-lg"><i class="fa-solid fa-route"></i></span>
+              </div>
+              <div class="mt-4">
+                <span class="text-2xl font-extrabold" id="stat-total-visits">0</span>
+                <span class="text-xs text-slate-400 ml-1">ครั้ง</span>
+              </div>
+            </div>
+            <!-- Card 3: Total Staff -->
+            <div class="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+              <div class="flex justify-between items-start">
+                <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">เจ้าหน้าที่ระบบ (CG/Admin)</span>
+                <span class="p-1.5 bg-purple-50 text-purple-600 dark:bg-purple-950 dark:text-purple-300 rounded-lg"><i class="fa-solid fa-user-nurse"></i></span>
+              </div>
+              <div class="mt-4">
+                <span class="text-2xl font-extrabold" id="stat-total-staff">0</span>
+                <span class="text-xs text-slate-400 ml-1">คน</span>
+              </div>
+            </div>
+            <!-- Card 4: Daily Visits -->
+            <div class="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+              <div class="flex justify-between items-start">
+                <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">การเยี่ยมวันนี้</span>
+                <span class="p-1.5 bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-300 rounded-lg"><i class="fa-solid fa-calendar-day"></i></span>
+              </div>
+              <div class="mt-4">
+                <span class="text-2xl font-extrabold" id="stat-daily-visits">0</span>
+                <span class="text-xs text-slate-400 ml-1">ครั้ง</span>
+              </div>
+            </div>
+            <!-- Card 5: Monthly Visits -->
+            <div class="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+              <div class="flex justify-between items-start">
+                <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">เดือนนี้</span>
+                <span class="p-1.5 bg-sky-50 text-sky-600 dark:bg-sky-950 dark:text-sky-300 rounded-lg"><i class="fa-solid fa-calendar-week"></i></span>
+              </div>
+              <div class="mt-4">
+                <span class="text-2xl font-extrabold" id="stat-monthly-visits">0</span>
+                <span class="text-xs text-slate-400 ml-1">ครั้ง</span>
+              </div>
+            </div>
+            <!-- Card 6: Yearly Visits -->
+            <div class="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+              <div class="flex justify-between items-start">
+                <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">ปีงบประมาณนี้</span>
+                <span class="p-1.5 bg-rose-50 text-rose-600 dark:bg-rose-950 dark:text-rose-300 rounded-lg"><i class="fa-solid fa-calendar-days"></i></span>
+              </div>
+              <div class="mt-4">
+                <span class="text-2xl font-extrabold" id="stat-yearly-visits">0</span>
+                <span class="text-xs text-slate-400 ml-1">ครั้ง</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- KPI Summary Cards (CG) -->
+          <div id="stats-container-cg" class="grid grid-cols-2 lg:grid-cols-4 gap-4" style="display: none;">
+            <!-- Card 1: CG Patients under care -->
+            <div class="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+              <div class="flex justify-between items-start">
+                <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">ผู้รับบริการในความดูแล</span>
+                <span class="p-1.5 bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-300 rounded-lg"><i class="fa-solid fa-users"></i></span>
+              </div>
+              <div class="mt-4">
+                <span class="text-2xl font-extrabold" id="stat-cg-patients">0</span>
+                <span class="text-xs text-slate-400 ml-1">ราย</span>
+              </div>
+            </div>
+            <!-- Card 2: CG visits per month -->
+            <div class="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+              <div class="flex justify-between items-start">
+                <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">จำนวนครั้ง / เดือน</span>
+                <span class="p-1.5 bg-sky-50 text-sky-600 dark:bg-sky-950 dark:text-sky-300 rounded-lg"><i class="fa-solid fa-calendar-check"></i></span>
+              </div>
+              <div class="mt-4">
+                <span class="text-2xl font-extrabold" id="stat-cg-visits-month">0</span>
+                <span class="text-xs text-slate-400 ml-1">ครั้ง</span>
+              </div>
+            </div>
+            <!-- Card 3: CG hours per month -->
+            <div class="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+              <div class="flex justify-between items-start">
+                <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">จำนวนชั่วโมง / เดือน</span>
+                <span class="p-1.5 bg-purple-50 text-purple-600 dark:bg-purple-950 dark:text-purple-300 rounded-lg"><i class="fa-solid fa-clock"></i></span>
+              </div>
+              <div class="mt-4">
+                <span class="text-2xl font-extrabold" id="stat-cg-hours-month">0</span>
+                <span class="text-xs text-slate-400 ml-1">ชั่วโมง</span>
+              </div>
+            </div>
+            <!-- Card 4: CG visits per year -->
+            <div class="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+              <div class="flex justify-between items-start">
+                <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">จำนวนครั้ง / ปี</span>
+                <span class="p-1.5 bg-rose-50 text-rose-600 dark:bg-rose-950 dark:text-rose-300 rounded-lg"><i class="fa-solid fa-calendar-days"></i></span>
+              </div>
+              <div class="mt-4">
+                <span class="text-2xl font-extrabold" id="stat-cg-visits-year">0</span>
+                <span class="text-xs text-slate-400 ml-1">ครั้ง</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Charts & Graphs Section -->
+          <div id="charts-container" class="grid grid-cols-1 lg:grid-cols-2 gap-6" style="display: none;">
+            <!-- Chart 1: Visits History (Monthly & Yearly) -->
+            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 space-y-4">
+              <div class="flex justify-between items-center">
+                <h3 class="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <i class="fa-solid fa-chart-bar text-secondary-500"></i> สถิติการเยี่ยมแยกตามช่วงเวลา
+                </h3>
+                <div class="flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-xs">
+                  <button onclick="app.updateVisitChartType('monthly')" id="btn-chart-monthly" class="px-3 py-1.5 rounded-md font-semibold bg-white dark:bg-slate-700 shadow-sm">รายเดือน</button>
+                  <button onclick="app.updateVisitChartType('yearly')" id="btn-chart-yearly" class="px-3 py-1.5 rounded-md font-semibold text-slate-500 dark:text-slate-400">รายปี</button>
+                </div>
+              </div>
+              <div class="h-64 relative">
+                <canvas id="chart-visits-time"></canvas>
+              </div>
+            </div>
+
+            <!-- Chart 2: Visits by CG & BP analysis -->
+            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 space-y-4">
+              <div class="flex justify-between items-center">
+                <h3 class="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <i class="fa-solid fa-circle-nodes text-secondary-500"></i> อัตราการเยี่ยมของเจ้าหน้าที่ CG
+                </h3>
+              </div>
+              <div class="h-64 relative">
+                <canvas id="chart-visits-cg"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Data Filter & Report List Table -->
+          <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+            <!-- Table Header & Filter Tools -->
+            <div class="p-6 border-b border-slate-100 dark:border-slate-800 space-y-4">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <h3 class="font-bold text-slate-900 dark:text-white flex items-center gap-2 text-lg">
+                  <i class="fa-solid fa-table-list text-primary-900 dark:text-secondary-500"></i>
+                  <span id="table-visits-title">รายชื่อบันทึกการเยี่ยมบ้าน LTC</span>
+                </h3>
+                <div class="flex flex-wrap items-center gap-2">
+                  <button id="btn-export-excel" onclick="app.exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs py-2 px-3 rounded-lg shadow-sm transition flex items-center gap-1.5">
+                    <i class="fa-regular fa-file-excel"></i> Export Excel
+                  </button>
+                  <button onclick="app.openLTCForm()" class="bg-primary-900 dark:bg-secondary-500 dark:hover:bg-secondary-600 hover:bg-primary-800 text-white font-semibold text-xs py-2 px-3 rounded-lg shadow-sm transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-plus"></i> เพิ่มการเยี่ยม
+                  </button>
+                </div>
+              </div>
+
+              <!-- Search Fields -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div class="relative">
+                  <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                  <input type="text" id="search-patient-name" placeholder="ค้นหาชื่อผู้ป่วย/ผู้รับบริการ..." class="w-full bg-slate-50 dark:bg-slate-800 pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-secondary-500">
+                </div>
+                <div id="filter-cg-wrapper" class="relative">
+                  <i class="fa-solid fa-user-nurse absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                  <input type="text" id="search-cg-name" placeholder="ค้นหาชื่อเจ้าหน้าที่ CG..." class="w-full bg-slate-50 dark:bg-slate-800 pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-secondary-500">
+                </div>
+                <div id="filter-date-wrapper" class="relative">
+                  <i class="fa-solid fa-calendar-days absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                  <input type="date" id="filter-visit-date" class="w-full bg-slate-50 dark:bg-slate-800 pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-secondary-500">
+                </div>
+                <div id="filter-time-wrapper" class="grid grid-cols-2 gap-2">
+                  <select id="filter-visit-month" class="w-full bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-secondary-500">
+                    <option value="">ทุกเดือน</option>
+                    <option value="01">มกราคม</option>
+                    <option value="02">กุมภาพันธ์</option>
+                    <option value="03">มีนาคม</option>
+                    <option value="04">เมษายน</option>
+                    <option value="05">พฤษภาคม</option>
+                    <option value="06">มิถุนายน</option>
+                    <option value="07">กรกฎาคม</option>
+                    <option value="08">สิงหาคม</option>
+                    <option value="09">กันยายน</option>
+                    <option value="10">ตุลาคม</option>
+                    <option value="11">พฤศจิกายน</option>
+                    <option value="12">ธันวาคม</option>
+                  </select>
+                  <select id="filter-visit-year" class="w-full bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-secondary-500">
+                    <!-- Years will be generated via script -->
+                    <option value="">ทุกปี</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Table Responsive Container -->
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse text-sm">
+                <thead>
+                  <tr id="table-visits-headers" class="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                    <th class="p-4 font-semibold">ชื่อผู้รับบริการ / อายุ</th>
+                    <th class="p-4 font-semibold">วันที่เยี่ยม</th>
+                    <th class="p-4 font-semibold">ช่วงเวลา (ระยะเวลา)</th>
+                    <th class="p-4 font-semibold">ความดันโลหิต</th>
+                    <th class="p-4 font-semibold">ผู้บันทึก (CG)</th>
+                    <th class="p-4 font-semibold text-center">เอกสาร Care plan</th>
+                    <th class="p-4 font-semibold text-right">การจัดการ</th>
+                  </tr>
+                </thead>
+                <tbody id="table-visits-body" class="divide-y divide-slate-100 dark:divide-slate-800">
+                  <!-- Row templates will be inserted here dynamically -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Empty State -->
+            <div id="table-visits-empty" class="hidden flex flex-col items-center justify-center p-12 text-slate-400 dark:text-slate-500 space-y-3">
+              <i class="fa-solid fa-folder-open text-5xl"></i>
+              <p class="font-medium text-base">ไม่พบข้อมูลรายงานการเยี่ยมตามเงื่อนไขที่เลือก</p>
+            </div>
+          </div>
+        </section>
+
+
+        <!-- ==================== SCREEN: LTC FORM ==================== -->
+        <section id="view-ltc-form" class="view-panel hidden animate-fade-in space-y-6">
+          <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+            <div class="p-6 bg-gradient-to-r from-primary-900 to-secondary-600 text-white flex justify-between items-center">
+              <div>
+                <h3 class="font-bold text-lg" id="form-title">แบบฟอร์มรายงานดูแลระยะยาว LTC</h3>
+                <p class="text-xs text-slate-200 mt-1">กรุณากรอกข้อมูลการเยี่ยมผู้รับบริการให้ถูกต้องและครบถ้วน</p>
+              </div>
+            </div>
+
+            <!-- Form Content -->
+            <form id="ltc-form-element" onsubmit="app.handleFormSubmit(event)" class="p-6 space-y-8">
+              <input type="hidden" id="form-record-id">
+
+              <!-- Section 1: Patient Information -->
+              <div class="space-y-4">
+                <h4 class="font-bold text-primary-900 dark:text-secondary-400 border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-2">
+                  <i class="fa-solid fa-circle-user"></i> ข้อมูลผู้รับบริการ (ผู้สูงอายุ / ผู้ป่วย)
+                </h4>
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">คำนำหน้า <span class="text-red-500">*</span></label>
+                    <select id="patient-title" required class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-secondary-500 focus:outline-none">
+                      <option value="">เลือก</option>
+                      <option value="นาย">นาย</option>
+                      <option value="นาง">นาง</option>
+                      <option value="นางสาว">นางสาว</option>
+                      <option value="ด.ช.">ด.ช.</option>
+                      <option value="ด.ญ.">ด.ญ.</option>
+                    </select>
+                  </div>
+                  <div class="sm:col-span-1">
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">ชื่อ <span class="text-red-500">*</span></label>
+                    <input type="text" id="patient-firstname" required class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-secondary-500 focus:outline-none">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">นามสกุล <span class="text-red-500">*</span></label>
+                    <input type="text" id="patient-lastname" required class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-secondary-500 focus:outline-none">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">อายุ (ปี) <span class="text-red-500">*</span></label>
+                    <input type="number" id="patient-age" required min="0" max="150" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-secondary-500 focus:outline-none">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Section 2: Address -->
+              <div class="space-y-4">
+                <h4 class="font-bold text-primary-900 dark:text-secondary-400 border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-2">
+                  <i class="fa-solid fa-map-location-dot"></i> ข้อมูลที่อยู่ผู้รับบริการ
+                </h4>
+                <div class="grid grid-cols-1 sm:grid-cols-6 gap-4">
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">บ้านเลขที่ <span class="text-red-500">*</span></label>
+                    <input type="text" id="address-no" required class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-secondary-500 focus:outline-none">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">หมู่ที่ <span class="text-red-500">*</span></label>
+                    <select id="address-moo" required class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-secondary-500 focus:outline-none">
+                      <option value="">เลือกหมู่</option>
+                      <option value="1">หมู่ 1</option>
+                      <option value="2">หมู่ 2</option>
+                      <option value="3">หมู่ 3</option>
+                      <option value="4">หมู่ 4</option>
+                      <option value="5">หมู่ 5</option>
+                      <option value="6">หมู่ 6</option>
+                      <option value="7">หมู่ 7</option>
+                      <option value="8">หมู่ 8</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">ตำบล/แขวง <span class="text-red-500">*</span></label>
+                    <input type="text" id="address-subdistrict" readonly value="พนานิคม" required class="w-full bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-500 dark:text-slate-400 font-semibold focus:outline-none">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">อำเภอ/เขต <span class="text-red-500">*</span></label>
+                    <input type="text" id="address-district" readonly value="นิคมพัฒนา" required class="w-full bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-500 dark:text-slate-400 font-semibold focus:outline-none">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">จังหวัด <span class="text-red-500">*</span></label>
+                    <input type="text" id="address-province" readonly value="ระยอง" required class="w-full bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-500 dark:text-slate-400 font-semibold focus:outline-none">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">รหัสไปรษณีย์ <span class="text-red-500">*</span></label>
+                    <input type="text" id="address-zip" readonly value="21180" required pattern="[0-9]{5}" class="w-full bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-500 dark:text-slate-400 font-semibold focus:outline-none">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Section 3: Visit Info -->
+              <div class="space-y-4">
+                <h4 class="font-bold text-primary-900 dark:text-secondary-400 border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-2">
+                  <i class="fa-solid fa-clock"></i> ข้อมูลวันเวลาและระยะเวลาการเยี่ยม
+                </h4>
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">วันที่เยี่ยมบ้าน <span class="text-red-500">*</span></label>
+                    <input type="date" id="visit-date" required class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-secondary-500 focus:outline-none">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">เวลาเริ่มต้น <span class="text-red-500">*</span></label>
+                    <div class="flex gap-2 items-center">
+                      <select id="visit-time-start-h" onchange="app.onCustomTimeChange()" class="w-1/2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-2 text-sm focus:ring-1 focus:ring-secondary-500 focus:outline-none"></select>
+                      <span class="font-bold text-slate-400">:</span>
+                      <select id="visit-time-start-m" onchange="app.onCustomTimeChange()" class="w-1/2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-2 text-sm focus:ring-1 focus:ring-secondary-500 focus:outline-none"></select>
+                    </div>
+                    <input type="hidden" id="visit-time-start">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">เวลาสิ้นสุด <span class="text-red-500">*</span></label>
+                    <div class="flex gap-2 items-center">
+                      <select id="visit-time-end-h" onchange="app.onCustomTimeChange()" class="w-1/2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-2 text-sm focus:ring-1 focus:ring-secondary-500 focus:outline-none"></select>
+                      <span class="font-bold text-slate-400">:</span>
+                      <select id="visit-time-end-m" onchange="app.onCustomTimeChange()" class="w-1/2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-2 text-sm focus:ring-1 focus:ring-secondary-500 focus:outline-none"></select>
+                    </div>
+                    <input type="hidden" id="visit-time-end">
+                    <div class="flex flex-wrap gap-1 mt-2">
+                      <button type="button" onclick="app.setQuickDuration(60)" class="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-350 px-2.5 py-1 rounded border border-slate-200 dark:border-slate-700 font-semibold transition">+1 ชม.</button>
+                      <button type="button" onclick="app.setQuickDuration(120)" class="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-350 px-2.5 py-1 rounded border border-slate-200 dark:border-slate-700 font-semibold transition">+2 ชม.</button>
+                      <button type="button" onclick="app.setQuickDuration(180)" class="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-350 px-2.5 py-1 rounded border border-slate-200 dark:border-slate-700 font-semibold transition">+3 ชม.</button>
+                      <button type="button" onclick="app.setQuickDuration(240)" class="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-350 px-2.5 py-1 rounded border border-slate-200 dark:border-slate-700 font-semibold transition">+4 ชม.</button>
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">รวมระยะเวลา</label>
+                    <input type="text" id="visit-duration-display" readonly placeholder="ระบบคำนวณอัตโนมัติ" class="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-500 dark:text-slate-400 font-medium focus:outline-none"><input type="hidden" id="visit-duration-minutes" value="0">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Section 4: Care Services -->
+              <div class="space-y-4">
+                <h4 class="font-bold text-primary-900 dark:text-secondary-400 border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-2">
+                  <i class="fa-solid fa-notes-medical"></i> รายละเอียดการให้บริการและการดูแล
+                </h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">รายละเอียดการดูแล <span class="text-red-500">*</span></label>
+                    <textarea id="care-details" required rows="3" placeholder="ตัวอย่าง: เช็ดตัว พลิกตัว ทำความสะอาดฟันผู้ป่วย..." class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-secondary-500 focus:outline-none"></textarea>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">กิจกรรมที่ดำเนินการเพิ่มเติม</label>
+                    <textarea id="care-activities" rows="3" placeholder="ตัวอย่าง: พูดคุยให้กำลังใจ แนะนำญาติเรื่องจัดสภาพแวดล้อม ป้องกันแผลกดทับ..." class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-secondary-500 focus:outline-none"></textarea>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Section 5: Vital Signs & Blood Pressure Analysis -->
+              <div class="space-y-4">
+                <h4 class="font-bold text-primary-900 dark:text-secondary-400 border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-2">
+                  <i class="fa-solid fa-heart-pulse"></i> สัญญาณชีพ & ค่าความดันโลหิต
+                </h4>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+                  <!-- Systolic -->
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">ค่า Systolic (ตัวบน - mmHg) <span class="text-red-500">*</span></label>
+                    <input type="number" id="bp-systolic" required min="40" max="300" oninput="app.analyzeBloodPressure()" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-secondary-500 focus:outline-none">
+                  </div>
+                  <!-- Diastolic -->
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">ค่า Diastolic (ตัวล่าง - mmHg) <span class="text-red-500">*</span></label>
+                    <input type="number" id="bp-diastolic" required min="30" max="200" oninput="app.analyzeBloodPressure()" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-secondary-500 focus:outline-none">
+                  </div>
+                  <!-- Analysis Result Display -->
+                  <div class="h-full flex flex-col justify-end">
+                    <span class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">ผลวิเคราะห์ระดับความดันโลหิต</span>
+                    <div id="bp-analysis-card" class="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2 min-h-[42px] transition duration-300">
+                      <i class="fa-solid fa-circle-info text-slate-400"></i>
+                      <span id="bp-analysis-text">กรอกค่าเพื่อวิเคราะห์ความดัน</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Section 6: Additional Health Data -->
+              <div class="space-y-4">
+                <h4 class="font-bold text-primary-900 dark:text-secondary-400 border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-2">
+                  <i class="fa-solid fa-comment-medical"></i> ข้อมูลสุขภาพและข้อสังเกตเพิ่มเติม
+                </h4>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">อาการล่าสุด (เช่น อ่อนเพลีย ไอ เจ็บหน้าอก มึนงง)</label>
+                    <input type="text" id="health-symptoms" placeholder="ระบุอาการสำคัญหากมี" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-secondary-500 focus:outline-none">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">ปัญหาสุขภาพสำคัญที่พบ</label>
+                    <input type="text" id="health-problems" placeholder="เช่น แผลเริ่มแดง ท้องผูกหลายวัน นอนไม่หลับ" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-secondary-500 focus:outline-none">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">สิ่งของ/เวชภัณฑ์ที่ต้องการช่วยเหลือเพิ่มเติม</label>
+                    <input type="text" id="requested-items" placeholder="เช่น แผ่นรองซับ, ผ้าอ้อมผู้ใหญ่ (ไซส์ L), แอลกอฮอล์" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-secondary-500 focus:outline-none">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">หมายเหตุอื่นๆ</label>
+                    <input type="text" id="health-remarks" placeholder="ระบุข้อมูลสำคัญอื่นๆ ที่ไม่ใช่ข้อมูลทางการแพทย์" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-secondary-500 focus:outline-none">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Section 7: GPS & Map Coordinates -->
+              <div class="space-y-4">
+                <h4 class="font-bold text-primary-900 dark:text-secondary-400 border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-2">
+                  <i class="fa-solid fa-map-location"></i> บันทึกตำแหน่งพิกัด GPS ขณะเยี่ยมบ้าน (ไม่บังคับ)
+                </h4>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <!-- GPS Capture Fields -->
+                  <div class="space-y-4">
+                    <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">สามารถดึงพิกัดจาก GPS เพื่อช่วยระบุตำแหน่งขณะเยี่ยมบ้าน โดยยอมรับสิทธิ์เข้าถึงตำแหน่ง (หากไม่สะดวกสามารถข้ามส่วนนี้ได้โดยไม่มีผลต่อการบันทึกรายงาน)</p>
+                    <div class="grid grid-cols-2 gap-2">
+                      <div>
+                        <label class="block text-[10px] font-semibold text-slate-400 mb-1">Latitude</label>
+                        <input type="text" id="gps-lat" readonly placeholder="ไม่มีพิกัด" class="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-500 dark:text-slate-400 font-semibold focus:outline-none">
+                      </div>
+                      <div>
+                        <label class="block text-[10px] font-semibold text-slate-400 mb-1">Longitude</label>
+                        <input type="text" id="gps-lng" readonly placeholder="ไม่มีพิกัด" class="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-500 dark:text-slate-400 font-semibold focus:outline-none">
+                      </div>
+                    </div>
+                    <button type="button" onclick="app.getCurrentLocation()" class="w-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-bold text-xs py-2.5 px-4 rounded-lg border border-slate-200 dark:border-slate-700 transition flex items-center justify-center gap-1.5 shadow-sm">
+                      <i class="fa-solid fa-location-crosshairs text-secondary-500"></i> ดึงพิกัด GPS ปัจจุบัน
+                    </button>
+                  </div>
+
+                  <!-- Map Display container -->
+                  <div class="lg:col-span-2">
+                    <div id="form-map" class="h-48 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 shadow-inner overflow-hidden relative z-10">
+                      <!-- Map loading/empty indicator -->
+                      <div class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 pointer-events-none" id="map-placeholder">
+                        <i class="fa-solid fa-earth-asia text-3xl mb-2"></i>
+                        <span class="text-xs">คลิก "ดึงพิกัด GPS" เพื่อเปิดแสดงแผนที่</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Section 8: Photos upload (Optional, max 3 photos) -->
+              <div class="space-y-4">
+                <h4 class="font-bold text-primary-900 dark:text-secondary-400 border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-2">
+                  <i class="fa-solid fa-camera"></i> แนบรูปภาพขณะลงพื้นที่ตรวจเยี่ยม (ไม่บังคับ - สูงสุด 3 รูป)
+                </h4>
+                <div class="space-y-3">
+                  <!-- Upload trigger -->
+                  <div onclick="document.getElementById('visit-photo-input').click()" class="flex flex-col items-center justify-center border-2 border-dashed border-slate-350 dark:border-slate-700 rounded-xl p-6 bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition cursor-pointer relative">
+                    <input type="file" id="visit-photo-input" multiple accept="image/*" class="hidden" onchange="app.handlePhotoSelection(event)">
+                    <i class="fa-solid fa-cloud-arrow-up text-3xl text-slate-400 dark:text-slate-500 mb-2"></i>
+                    <p class="text-xs font-semibold text-slate-650 dark:text-slate-300">คลิกเพื่อเลือกรูปภาพ หรือลากไฟล์ภาพมาวางที่นี่</p>
+                    <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">รองรับเฉพาะไฟล์รูปภาพ (JPG, PNG) ขนาดไม่เกิน 4MB ต่อไฟล์</p>
+                  </div>
+                  <!-- Preview Grid -->
+                  <div id="photo-preview-container" class="grid grid-cols-3 gap-3"></div>
+                </div>
+              </div>
+
+
+
+              <!-- Form Action Buttons -->
+              <div class="flex flex-col sm:flex-row justify-end items-center gap-3 pt-6 border-t border-slate-100 dark:border-slate-800">
+                <button type="button" onclick="app.backToDashboard()" class="w-full sm:w-auto bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-sm py-2.5 px-6 rounded-xl border border-slate-200 dark:border-slate-700 transition">
+                  ยกเลิก / กลับหน้าหลัก
+                </button>
+                <button type="submit" id="btn-submit-form" class="w-full sm:w-auto bg-primary-900 dark:bg-secondary-500 hover:bg-primary-800 dark:hover:bg-secondary-600 text-white font-bold text-sm py-2.5 px-8 rounded-xl transition shadow-md flex items-center justify-center gap-2">
+                  <i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูลรายงาน
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+
+        <!-- ==================== SCREEN: STAFF MANAGEMENT (ADMIN ONLY) ==================== -->
+        <section id="view-admin" class="view-panel hidden animate-fade-in space-y-6">
+          <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+            <div class="p-6 bg-gradient-to-r from-primary-900 to-secondary-600 text-white flex justify-between items-center">
+              <div>
+                <h3 class="font-bold text-lg">การจัดการบัญชีเจ้าหน้าที่ CG</h3>
+                <p class="text-xs text-slate-200 mt-1">ผู้ดูแลระบบสามารถลงทะเบียนเจ้าหน้าที่ใหม่ แก้ไขข้อมูล รีเซ็ตรหัสผ่าน และควบคุมการเข้าถึงระบบได้</p>
+              </div>
+              <button onclick="app.openAddStaffModal()" class="bg-white/20 hover:bg-white/30 text-white font-semibold text-xs py-2 px-3 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+                <i class="fa-solid fa-user-plus text-base"></i> เพิ่มเจ้าหน้าที่ใหม่
+              </button>
+            </div>
+
+            <div class="p-6 space-y-4">
+              <!-- Search Staff -->
+              <div class="relative max-w-sm">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                <input type="text" id="search-staff-query" oninput="app.renderStaffList()" placeholder="ค้นหาเจ้าหน้าที่ตามชื่อหรือรหัส..." class="w-full bg-slate-50 dark:bg-slate-800 pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-secondary-500">
+              </div>
+
+              <!-- Staff Table -->
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr class="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                      <th class="p-4 font-semibold">รหัสเจ้าหน้าที่</th>
+                      <th class="p-4 font-semibold">ชื่อ-นามสกุล</th>
+                      <th class="p-4 font-semibold">ระดับสิทธิ์</th>
+                      <th class="p-4 font-semibold text-right">การจัดการ</th>
+                    </tr>
+                  </thead>
+                  <tbody id="table-staff-body" class="divide-y divide-slate-100 dark:divide-slate-800">
+                    <!-- Staff rows dynamically loaded -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+
+
+
+        <!-- ==================== SCREEN: CARE PLAN DOCUMENTS ==================== -->
+        <section id="view-careplan" class="view-panel hidden animate-fade-in space-y-6">
+          <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+            <!-- Header -->
+            <div class="p-6 bg-gradient-to-r from-primary-900 to-secondary-600 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 class="font-bold text-lg flex items-center gap-2">
+                  <i class="fa-solid fa-file-medical text-xl"></i> ระบบจัดการเอกสาร Care plan
+                </h3>
+                <p class="text-xs text-slate-200 mt-1">ค้นหารายชื่อผู้รับบริการทั้งหมดเพื่อทำการแนบไฟล์ ดู หรือดาวน์โหลดเอกสารประกอบการดูแล (Care plan)</p>
+              </div>
+              <button id="btn-add-careplan-new" onclick="app.openNewCarePlanModal()" class="bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-primary-900 dark:text-secondary-400 font-bold text-xs py-2.5 px-4 rounded-xl shadow-md transition flex items-center gap-2 self-start sm:self-auto">
+                <i class="fa-solid fa-plus text-sm"></i> แนบเอกสาร Care plan ใหม่
+              </button>
+            </div>
+
+            <!-- Filter & Search tools -->
+            <div class="p-6 border-b border-slate-100 dark:border-slate-800 space-y-4">
+              <div class="max-w-md relative">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                <input type="text" id="search-careplan-patient" placeholder="ค้นหาชื่อผู้ป่วย/ผู้รับบริการที่ต้องการแนบ Care plan..." class="w-full bg-slate-50 dark:bg-slate-800 pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-secondary-500">
+              </div>
+            </div>
+
+            <!-- Table content -->
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse text-sm">
+                <thead>
+                  <tr class="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                    <th class="p-4 font-semibold">ชื่อผู้รับบริการ / อายุ</th>
+                    <th class="p-4 font-semibold">วันที่เยี่ยมล่าสุด</th>
+                    <th class="p-4 font-semibold">ผู้บันทึก (CG)</th>
+                    <th class="p-4 font-semibold text-center">เอกสาร Care plan</th>
+                    <th class="p-4 font-semibold text-right flex justify-end pr-8">การจัดการ</th>
+                  </tr>
+                </thead>
+                <tbody id="table-careplan-body" class="divide-y divide-slate-100 dark:divide-slate-800">
+                  <!-- Dynamic rows -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Empty State -->
+            <div id="table-careplan-empty" class="hidden flex flex-col items-center justify-center p-12 text-slate-400 dark:text-slate-500 space-y-3">
+              <i class="fa-solid fa-folder-open text-5xl"></i>
+              <p class="font-medium text-base">ไม่พบข้อมูลผู้รับบริการตามเงื่อนไขที่ค้นหา</p>
+            </div>
+          </div>
+        </section>
+
+
+        <!-- ==================== SCREEN: AUDIT LOGS (ADMIN ONLY) ==================== -->
+        <section id="view-logs" class="view-panel hidden animate-fade-in space-y-6">
+          <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+            <div class="p-6 bg-gradient-to-r from-primary-900 to-secondary-600 text-white flex justify-between items-center">
+              <div>
+                <h3 class="font-bold text-lg">ประวัติประทับบันทึกการแก้ไขในระบบ (System Logs)</h3>
+                <p class="text-xs text-slate-200 mt-1">เก็บประวัติการสร้าง แก้ไข ลบข้อมูล เพื่อความปลอดภัยและความโปร่งใสในการจัดการระบบรายงานสุขภาพ</p>
+              </div>
+              <button onclick="app.clearAuditLogs()" class="bg-red-600/80 hover:bg-red-600 text-white font-semibold text-xs py-2 px-3 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+                <i class="fa-solid fa-trash-can"></i> ล้างประวัติ Log ทั้งหมด
+              </button>
+            </div>
+
+            <div class="p-6">
+              <div class="overflow-x-auto max-h-96">
+                <table class="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr class="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                      <th class="p-3 font-semibold">วันเวลา</th>
+                      <th class="p-3 font-semibold">ผู้ดำเนินการ</th>
+                      <th class="p-3 font-semibold">เหตุการณ์ / กิจกรรม</th>
+                      <th class="p-3 font-semibold">ข้อมูลเป้าหมาย</th>
+                    </tr>
+                  </thead>
+                  <tbody id="table-logs-body" class="divide-y divide-slate-100 dark:divide-slate-800">
+                    <!-- Logs inserted here -->
+                  </tbody>
+                </table>
+              </div>
+              <!-- Empty state for logs -->
+              <div id="table-logs-empty" class="hidden flex flex-col items-center justify-center py-12 text-slate-400 dark:text-slate-500 space-y-2">
+                <i class="fa-solid fa-receipt text-4xl"></i>
+                <p class="font-medium text-xs">ไม่พบประวัติการทำกิจกรรมใดๆ ในปัจจุบัน</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </main>
+
+      <!-- Mobile Bottom Navigation Bar (Screens <= 768px) -->
+      <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex justify-around py-2 px-1 z-40 shadow-xl">
+        <a href="#" data-view="dashboard" class="mobile-nav-link flex flex-col items-center flex-1 text-slate-400 dark:text-slate-500 py-1">
+          <i class="fa-solid fa-chart-line text-lg"></i>
+          <span class="text-[10px] mt-1 font-medium">หน้าหลัก</span>
+        </a>
+        <a href="#" data-view="ltc-form" class="mobile-nav-link flex flex-col items-center flex-1 text-slate-400 dark:text-slate-500 py-1">
+          <i class="fa-solid fa-file-signature text-lg"></i>
+          <span class="text-[10px] mt-1 font-medium">บันทึกเยี่ยม</span>
+        </a>
+        <a href="#" data-view="careplan" id="mobile-nav-careplan-link" class="mobile-nav-link hidden flex flex-col items-center flex-1 text-slate-400 dark:text-slate-500 py-1">
+          <i class="fa-solid fa-file-medical text-lg"></i>
+          <span class="text-[10px] mt-1 font-medium">Care plan</span>
+        </a>
+        <a href="#" data-view="admin" id="mobile-nav-admin-link" class="mobile-nav-link hidden flex flex-col items-center flex-1 text-slate-400 dark:text-slate-500 py-1">
+          <i class="fa-solid fa-users-gear text-lg"></i>
+          <span class="text-[10px] mt-1 font-medium">จัดการบัญชี</span>
+        </a>
+        <a href="#" data-view="logs" id="mobile-nav-logs-link" class="mobile-nav-link hidden flex flex-col items-center flex-1 text-slate-400 dark:text-slate-500 py-1">
+          <i class="fa-solid fa-clock-rotate-left text-lg"></i>
+          <span class="text-[10px] mt-1 font-medium">ประวัติระบบ</span>
+        </a>
+      </nav>
+    </div>
+  </div>
+
+
+  <!-- ==================== GUEST APP CONTROLLER (LOGIN / REGISTER / FORGOT) ==================== -->
+  <div id="guest-container" class="flex-1 flex items-center justify-center p-4 min-h-screen bg-slate-900 relative overflow-hidden">
+    <!-- Beautiful Background Shapes -->
+    <div class="absolute w-80 h-80 rounded-full bg-primary-800/30 filter blur-3xl -top-20 -left-20"></div>
+    <div class="absolute w-80 h-80 rounded-full bg-secondary-500/20 filter blur-3xl -bottom-20 -right-20"></div>
+
+    <div class="w-full max-w-md bg-slate-950/80 backdrop-blur-md border border-slate-800/80 rounded-3xl p-6 md:p-8 text-white shadow-2xl relative z-10 space-y-8">
+      
+      <!-- Brand Logo -->
+      <div class="flex flex-col items-center space-y-2 text-center">
+        <div class="bg-gradient-to-tr from-primary-800 to-secondary-500 p-3 rounded-2xl shadow-lg inline-flex items-center justify-center">
+          <i class="fa-solid fa-house-medical text-3xl text-white"></i>
+        </div>
+        <h2 class="font-extrabold text-xl md:text-2xl tracking-tight bg-gradient-to-r from-white to-sky-300 bg-clip-text text-transparent">Long Term Care Report System</h2>
+        <p class="text-xs text-slate-400 font-medium">ระบบรายงานข้อมูลดูแลระยะยาว (Long Term Care)</p>
+      </div>
+
+      <!-- VIEW: LOGIN PANEL -->
+      <div id="guest-view-login" class="guest-panel space-y-5">
+        <h3 class="font-bold text-lg text-slate-100 flex items-center gap-1.5"><i class="fa-solid fa-right-to-bracket text-secondary-500"></i> เข้าสู่ระบบ</h3>
+        
+        <form onsubmit="app.handleLogin(event)" class="space-y-4">
+          <div>
+            <label class="block text-[11px] font-bold text-slate-400 mb-1.5 uppercase">รหัสเจ้าหน้าที่ (Username)</label>
+            <div class="relative">
+              <i class="fa-solid fa-user-ninja absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+              <input type="text" id="login-username" required placeholder="เช่น cg01" class="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-2.5 text-sm focus:border-secondary-500 focus:outline-none placeholder-slate-600 transition">
+            </div>
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-400 mb-1.5 uppercase">รหัสผ่าน</label>
+            <div class="relative">
+              <i class="fa-solid fa-lock absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+              <input type="password" id="login-password" required placeholder="ป้อนรหัสผ่านของคุณ" class="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-10 py-2.5 text-sm focus:border-secondary-500 focus:outline-none placeholder-slate-600 transition">
+              <button type="button" onclick="app.togglePasswordVisibility('login-password')" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition focus:outline-none">
+                <i class="fa-solid fa-eye toggle-password-icon text-xs"></i>
+              </button>
+            </div>
+          </div>
+          
+          <div class="flex items-center justify-between text-xs text-slate-400">
+            <label class="flex items-center space-x-1.5 cursor-pointer">
+              <input type="checkbox" id="login-remember" class="rounded bg-slate-900 border-slate-800 text-secondary-500 focus:ring-0">
+              <span>จดจำรหัสเจ้าหน้าที่</span>
+            </label>
+            <a href="#" onclick="app.switchGuestView('forgot')" class="hover:text-secondary-400 transition font-medium">ลืมรหัสผ่าน?</a>
+          </div>
+
+          <button type="submit" class="w-full bg-gradient-to-r from-primary-800 to-secondary-500 hover:opacity-95 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-lg transition">
+            เข้าสู่ระบบใช้งาน
+          </button>
+        </form>
+
+        <p class="text-center text-xs text-slate-500">
+          ยังไม่ได้ลงทะเบียนเจ้าหน้าที่? 
+          <a href="#" onclick="app.switchGuestView('register')" class="text-secondary-400 font-bold hover:underline">สมัครสมาชิกที่นี่</a>
+        </p>
+
+        <div class="pt-4 border-t border-slate-800/60 text-center">
+          <p class="text-[10.5px] text-slate-400 leading-relaxed">
+            <span class="text-secondary-400 font-bold">หมายเหตุ:</span> เพื่อความเสถียรในการใช้งานระบบสูงสุด แนะนำให้ใช้งานผ่านเว็บเบราว์เซอร์ Google Chrome หรือ Safari
+          </p>
+        </div>
+
+        <!-- ข้อมูลตรวจสอบสถานะระบบ (System Diagnostics Panel) -->
+        <div class="mt-2 pt-3 border-t border-slate-800/40 text-left space-y-1 text-[10px] text-slate-500 font-mono">
+          <p class="font-bold text-slate-400">🕵️ ข้อมูลสถานะระบบหลังบ้าน:</p>
+          <p>• เวอร์ชันระบบ: <span id="diag-app-version" class="text-secondary-400">v1.3 - อัปเกรดล่าสุด</span></p>
+          <p>• ประเภทโดเมน: <span id="diag-domain-type" class="text-slate-400">กำลังโหลด...</span></p>
+          <p>• ทดสอบเชื่อมคลาวด์ API: <span id="diag-api-status" class="text-slate-400">กำลังโหลด...</span></p>
+        </div>
+      </div>
+
+      <!-- VIEW: REGISTER PANEL -->
+      <div id="guest-view-register" class="guest-panel hidden space-y-5">
+        <h3 class="font-bold text-lg text-slate-100 flex items-center gap-1.5"><i class="fa-solid fa-user-plus text-secondary-500"></i> สมัครสมาชิกเจ้าหน้าที่</h3>
+        
+        <form onsubmit="app.handleRegister(event)" class="space-y-4">
+          <div>
+            <label class="block text-[11px] font-bold text-slate-400 mb-1.5">รหัสประจำตัวเจ้าหน้าที่ (สิทธิ์ในการล็อกอิน)</label>
+            <input type="text" id="register-username" required placeholder="ป้อนรหัสที่ไม่มีช่องว่าง เช่น cg02" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm focus:border-secondary-500 focus:outline-none placeholder-slate-600 transition">
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-400 mb-1.5">ชื่อ-นามสกุลจริง</label>
+            <input type="text" id="register-fullname" required placeholder="ระบุ คำนำหน้า ชื่อ นามสกุล" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm focus:border-secondary-500 focus:outline-none placeholder-slate-600 transition">
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-400 mb-1.5">รหัสผ่าน</label>
+            <div class="relative">
+              <input type="password" id="register-password" required placeholder="ระบุรหัสผ่าน (ขั้นต่ำ 4 ตัวอักษร)" class="w-full bg-slate-900 border border-slate-800 rounded-xl pl-3.5 pr-10 py-2.5 text-sm focus:border-secondary-500 focus:outline-none placeholder-slate-600 transition">
+              <button type="button" onclick="app.togglePasswordVisibility('register-password')" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition focus:outline-none">
+                <i class="fa-solid fa-eye toggle-password-icon text-xs"></i>
+              </button>
+            </div>
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-400 mb-1.5">ระดับผู้ใช้งานเริ่มต้น</label>
+            <select id="register-role" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm focus:border-secondary-500 focus:outline-none text-slate-300">
+              <option value="cg">เจ้าหน้าที่ CG (Caregiver)</option>
+              <option value="admin">เจ้าหน้าที่ / ผู้ดูแลระบบ (Admin)</option>
+            </select>
+          </div>
+
+          <button type="submit" class="w-full bg-gradient-to-r from-primary-800 to-secondary-500 hover:opacity-95 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-lg transition">
+            ยืนยันการสมัครสมาชิก
+          </button>
+        </form>
+
+        <p class="text-center text-xs text-slate-500">
+          เป็นสมาชิกอยู่แล้ว? 
+          <a href="#" onclick="app.switchGuestView('login')" class="text-secondary-400 font-bold hover:underline">เข้าสู่ระบบ</a>
+        </p>
+      </div>
+
+      <!-- VIEW: FORGOT PASSWORD PANEL -->
+      <div id="guest-view-forgot" class="guest-panel hidden space-y-5">
+        <h3 class="font-bold text-lg text-slate-100 flex items-center gap-1.5"><i class="fa-solid fa-key text-secondary-500"></i> รีเซ็ตรหัสผ่านเจ้าหน้าที่</h3>
+        <p class="text-xs text-slate-400 leading-relaxed">กรุณากรอกรหัสประจำตัวเจ้าหน้าที่เพื่อขอเปลี่ยนรหัสผ่านใหม่ลงระบบ</p>
+        
+        <form onsubmit="app.handleForgotPassword(event)" class="space-y-4">
+          <div>
+            <label class="block text-[11px] font-bold text-slate-400 mb-1.5">รหัสเจ้าหน้าที่ของคุณ</label>
+            <input type="text" id="forgot-username" required placeholder="ป้อนรหัสเจ้าหน้าที่ของคุณ" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm focus:border-secondary-500 focus:outline-none placeholder-slate-600 transition">
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-400 mb-1.5">รหัสผ่านใหม่ที่ต้องการ</label>
+            <div class="relative">
+              <input type="password" id="forgot-new-password" required placeholder="ระบุรหัสผ่านใหม่" class="w-full bg-slate-900 border border-slate-800 rounded-xl pl-3.5 pr-10 py-2.5 text-sm focus:border-secondary-500 focus:outline-none placeholder-slate-600 transition">
+              <button type="button" onclick="app.togglePasswordVisibility('forgot-new-password')" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition focus:outline-none">
+                <i class="fa-solid fa-eye toggle-password-icon text-xs"></i>
+              </button>
+            </div>
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-400 mb-1.5">ยืนยันรหัสผ่านใหม่</label>
+            <div class="relative">
+              <input type="password" id="forgot-confirm-password" required placeholder="ป้อนรหัสผ่านใหม่อีกครั้ง" class="w-full bg-slate-900 border border-slate-800 rounded-xl pl-3.5 pr-10 py-2.5 text-sm focus:border-secondary-500 focus:outline-none placeholder-slate-600 transition">
+              <button type="button" onclick="app.togglePasswordVisibility('forgot-confirm-password')" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition focus:outline-none">
+                <i class="fa-solid fa-eye toggle-password-icon text-xs"></i>
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" class="w-full bg-gradient-to-r from-primary-800 to-secondary-500 hover:opacity-95 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-lg transition">
+            เปลี่ยนรหัสผ่าน
+          </button>
+        </form>
+
+        <p class="text-center text-xs text-slate-500">
+          <a href="#" onclick="app.switchGuestView('login')" class="text-secondary-400 font-bold hover:underline flex items-center justify-center gap-1"><i class="fa-solid fa-arrow-left"></i> กลับหน้าเข้าสู่ระบบ</a>
+        </p>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- ==================== DIALOGS / MODALS ==================== -->
+
+  <!-- MODAL: REPORT DETAIL MODAL (AND PRINT CONTAINER) -->
+  <div id="modal-report-detail" class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[999] hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col print-full animate-fade-in">
+      <!-- Modal Header -->
+      <div class="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center no-print">
+        <h3 class="font-bold text-slate-900 dark:text-white text-lg flex items-center gap-2">
+          <i class="fa-solid fa-file-invoice text-primary-900 dark:text-secondary-500"></i> รายละเอียดบันทึกการดูแล LTC รายบุคคล
+        </h3>
+        <div class="flex items-center space-x-2">
+          <button onclick="app.printCurrentReport()" class="bg-primary-900 dark:bg-secondary-500 hover:bg-primary-800 dark:hover:bg-secondary-600 text-white font-bold text-xs py-2 px-3 rounded-lg shadow-sm transition flex items-center gap-1.5">
+            <i class="fa-solid fa-print"></i> พิมพ์ / บันทึก PDF
+          </button>
+          <button onclick="app.closeReportDetailModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xl font-bold p-1">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Printable & Readable Report Content -->
+      <div id="report-print-content" class="p-6 md:p-8 space-y-6 print-full overflow-y-auto">
+        <!-- Rendered by JS -->
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="p-4 bg-slate-50 dark:bg-slate-800/40 border-t border-slate-100 dark:border-slate-800 flex justify-end no-print rounded-b-2xl">
+        <button onclick="app.closeReportDetailModal()" class="bg-slate-200 hover:bg-slate-350 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs py-2 px-5 rounded-lg transition border border-slate-300 dark:border-slate-700">
+          ปิดหน้าต่าง
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD/EDIT STAFF USER -->
+  <div id="modal-staff-form" class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[999] hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-2xl animate-fade-in overflow-hidden">
+      <!-- Header -->
+      <div class="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-primary-900 text-white">
+        <h3 class="font-bold text-sm" id="modal-staff-title">เพิ่มเจ้าหน้าที่ใหม่</h3>
+        <button onclick="app.closeStaffModal()" class="text-white/80 hover:text-white text-lg font-bold"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <!-- Body Form -->
+      <form onsubmit="app.handleStaffFormSubmit(event)" class="p-5 space-y-4">
+        <input type="hidden" id="staff-form-mode" value="add">
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">รหัสเจ้าหน้าที่ <span class="text-red-500">*</span></label>
+          <input type="text" id="staff-form-username" required class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-secondary-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">ชื่อ-นามสกุลจริง <span class="text-red-500">*</span></label>
+          <input type="text" id="staff-form-fullname" required class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-secondary-500 focus:outline-none">
+        </div>
+        <div id="staff-form-password-container">
+          <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">รหัสผ่าน <span class="text-red-500">*</span></label>
+          <div class="relative">
+            <input type="password" id="staff-form-password" required class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-1 focus:ring-secondary-500 focus:outline-none">
+            <button type="button" onclick="app.togglePasswordVisibility('staff-form-password')" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition focus:outline-none">
+              <i class="fa-solid fa-eye toggle-password-icon text-xs"></i>
+            </button>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">ระดับสิทธิ์การทำงาน</label>
+          <select id="staff-form-role" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-secondary-500 focus:outline-none">
+            <option value="cg">เจ้าหน้าที่ CG (Caregiver)</option>
+            <option value="admin">เจ้าหน้าที่ / ผู้ดูแลระบบ (Admin)</option>
+          </select>
+        </div>
+        <!-- Actions -->
+        <div class="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+          <button type="button" onclick="app.closeStaffModal()" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2 px-4 rounded-lg text-xs font-bold transition">ยกเลิก</button>
+          <button type="submit" class="bg-primary-900 dark:bg-secondary-500 hover:bg-primary-800 dark:hover:bg-secondary-600 text-white py-2 px-6 rounded-lg text-xs font-bold transition">บันทึกข้อมูล</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: EDIT CURRENT PROFILE -->
+  <div id="modal-profile" class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[999] hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-2xl animate-fade-in overflow-hidden">
+      <!-- Header -->
+      <div class="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-primary-900 text-white">
+        <h3 class="font-bold text-sm">แก้ไขข้อมูลเจ้าหน้าที่ & เปลี่ยนรหัสผ่าน</h3>
+        <button onclick="app.closeProfileModal()" class="text-white/80 hover:text-white text-lg font-bold"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <!-- Body Form -->
+      <form onsubmit="app.handleProfileFormSubmit(event)" class="p-5 space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">รหัสเจ้าหน้าที่</label>
+          <input type="text" id="profile-username" readonly class="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">ชื่อ-นามสกุลจริง <span class="text-red-500">*</span></label>
+          <input type="text" id="profile-fullname" required class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-secondary-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">รหัสผ่านใหม่ (ปล่อยว่างหากไม่ต้องการเปลี่ยน)</label>
+          <div class="relative">
+            <input type="password" id="profile-password" placeholder="ใส่รหัสผ่านใหม่" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg pl-3 pr-10 py-2 text-sm focus:ring-1 focus:ring-secondary-500 focus:outline-none">
+            <button type="button" onclick="app.togglePasswordVisibility('profile-password')" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition focus:outline-none">
+              <i class="fa-solid fa-eye toggle-password-icon text-xs"></i>
+            </button>
+          </div>
+        </div>
+        <!-- Actions -->
+        <div class="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+          <button type="button" onclick="app.closeProfileModal()" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2 px-4 rounded-lg text-xs font-bold transition">ยกเลิก</button>
+          <button type="submit" class="bg-primary-900 dark:bg-secondary-500 hover:bg-primary-800 dark:hover:bg-secondary-600 text-white py-2 px-6 rounded-lg text-xs font-bold transition">บันทึกประวัติ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: QR CODE SCANNER -->
+  <div id="modal-qrcode-scanner" class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[999] hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-2xl animate-fade-in overflow-hidden flex flex-col">
+      <!-- Header -->
+      <div class="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-primary-900 text-white">
+        <h3 class="font-bold text-sm">สแกน QR Code ผู้รับบริการ</h3>
+        <button onclick="app.closeQRScannerModal()" class="text-white/80 hover:text-white text-lg font-bold"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <!-- Body -->
+      <div class="p-6 flex flex-col items-center justify-center space-y-4">
+        <p class="text-xs text-slate-500 dark:text-slate-400 text-center leading-relaxed">สแกน QR Code ของผู้รับบริการเพื่อดึงประวัติส่วนตัวและข้อมูลที่อยู่เข้าสู่แบบฟอร์มรายงานอัตโนมัติ</p>
+        
+        <!-- Scanner Target -->
+        <div id="qr-reader" class="w-full max-w-xs aspect-square border border-slate-300 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-950"></div>
+        
+        <p class="text-xs text-red-500 font-semibold hidden" id="qr-error-msg">เกิดข้อผิดพลาดในการเปิดกล้อง</p>
+      </div>
+      <!-- Footer -->
+      <div class="p-4 bg-slate-50 dark:bg-slate-800/40 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+        <button onclick="app.closeQRScannerModal()" class="bg-slate-200 hover:bg-slate-350 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2 px-5 rounded-lg text-xs font-bold transition">
+          ปิดเครื่องสแกน
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- MODAL: MANAGE CARE PLAN (ATTACHMENTS) -->
+  <div id="modal-careplan-upload" class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[999] hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg shadow-2xl animate-fade-in overflow-hidden flex flex-col">
+      <!-- Header -->
+      <div class="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-primary-900 text-white">
+        <div>
+          <h3 class="font-bold text-base flex items-center gap-2">
+            <i class="fa-solid fa-file-medical"></i> <span id="careplan-modal-title">จัดการเอกสาร Care plan</span>
+          </h3>
+          <p class="text-[11px] text-slate-300 mt-0.5" id="careplan-patient-info">ผู้รับบริการ: -</p>
+        </div>
+        <button onclick="app.closeCarePlanModal()" class="text-white/80 hover:text-white text-lg font-bold"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <!-- Body -->
+      <div class="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
+        <input type="hidden" id="careplan-visit-id" value="">
+        
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">รายการเอกสาร PDF ปัจจุบัน (สูงสุด 3 ไฟล์)</label>
+          <!-- Current attachments grid -->
+          <div id="careplan-files-container" class="grid grid-cols-3 gap-3">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+ 
+        <!-- Custom Upload Area inside Modal -->
+        <div class="space-y-2" id="careplan-modal-upload-section">
+          <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400">แนบเอกสาร PDF เพิ่มเติม</label>
+          <div class="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-4 bg-slate-50 dark:bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition cursor-pointer relative" id="careplan-upload-zone" onclick="document.getElementById('careplan-file-input').click()">
+            <input type="file" id="careplan-file-input" multiple accept=".pdf" class="hidden" onchange="app.handleCarePlanFileSelection(event)">
+            <i class="fa-solid fa-cloud-arrow-up text-2xl text-secondary-500 mb-1"></i>
+            <p class="font-bold text-xs text-slate-700 dark:text-slate-300">คลิกที่นี่เพื่อแนบไฟล์</p>
+            <p class="text-[10px] text-slate-400 text-center mt-0.5">รองรับไฟล์ PDF เท่านั้น (ไม่เกิน 4MB)</p>
+          </div>
+        </div>
+      </div>
+      <!-- Footer -->
+      <div class="p-4 bg-slate-50 dark:bg-slate-800/40 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
+        <button onclick="app.closeCarePlanModal()" id="careplan-modal-cancel-btn" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2 px-4 rounded-lg text-xs font-bold transition border border-slate-200 dark:border-slate-700">ยกเลิก</button>
+        <button onclick="app.saveCarePlan()" id="careplan-modal-save-btn" class="bg-primary-900 dark:bg-secondary-500 hover:bg-primary-800 dark:hover:bg-secondary-600 text-white py-2 px-6 rounded-lg text-xs font-bold transition shadow-sm">บันทึกข้อมูล</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD NEW CARE PLAN FROM MANAGE PAGE -->
+  <div id="modal-new-careplan" class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[999] hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-2xl animate-fade-in overflow-hidden flex flex-col">
+      <!-- Header -->
+      <div class="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-primary-900 text-white">
+        <h3 class="font-bold text-base flex items-center gap-2">
+          <i class="fa-solid fa-file-circle-plus"></i> <span id="modal-new-careplan-title">แนบเอกสาร Care plan ใหม่</span>
+        </h3>
+        <button onclick="app.closeNewCarePlanModal()" class="text-white/80 hover:text-white text-lg font-bold"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <!-- Body Form -->
+      <form onsubmit="app.handleNewCarePlanSubmit(event)" class="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+        <input type="hidden" id="new-cp-visit-id" value="">
+        
+        <!-- Patient Information -->
+        <div class="space-y-3">
+          <h4 class="text-xs font-bold text-slate-400 border-b pb-1">ข้อมูลผู้รับบริการ / ผู้ป่วย</h4>
+          
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-500 mb-1">คำนำหน้า <span class="text-red-500">*</span></label>
+              <select id="new-cp-title" required class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-2 text-xs focus:ring-1 focus:ring-secondary-500 focus:outline-none">
+                <option value="นาย">นาย</option>
+                <option value="นาง">นาง</option>
+                <option value="นางสาว">นางสาว</option>
+                <option value="เด็กชาย">เด็กชาย</option>
+                <option value="เด็กหญิง">เด็กหญิง</option>
+              </select>
+            </div>
+            <div class="col-span-2">
+              <label class="block text-[11px] font-semibold text-slate-500 mb-1">ชื่อจริง <span class="text-red-500">*</span></label>
+              <input type="text" id="new-cp-firstname" required placeholder="ชื่อ" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-secondary-500 focus:outline-none">
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-3 gap-2">
+            <div class="col-span-2">
+              <label class="block text-[11px] font-semibold text-slate-500 mb-1">นามสกุล <span class="text-red-500">*</span></label>
+              <input type="text" id="new-cp-lastname" required placeholder="นามสกุล" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-secondary-500 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-500 mb-1">อายุ (ปี) <span class="text-red-500">*</span></label>
+              <input type="number" id="new-cp-age" required min="1" max="150" placeholder="อายุ" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-2 text-xs focus:ring-1 focus:ring-secondary-500 focus:outline-none">
+            </div>
+          </div>
+        </div>
+
+        <!-- File Upload Section -->
+        <div class="space-y-3 pt-2">
+          <h4 class="text-xs font-bold text-slate-400 border-b pb-1">เอกสารที่ต้องการแนบ (เฉพาะ PDF)</h4>
+          
+          <!-- Upload Area inside New Modal -->
+          <div class="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-4 bg-slate-50 dark:bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition cursor-pointer relative" id="new-cp-upload-zone" onclick="document.getElementById('new-cp-file-input').click()">
+            <input type="file" id="new-cp-file-input" multiple accept=".pdf" class="hidden" onchange="app.handleNewCPFileSelection(event)">
+            <i class="fa-solid fa-cloud-arrow-up text-2xl text-secondary-500 mb-1"></i>
+            <p class="font-bold text-xs text-slate-700 dark:text-slate-300">คลิกที่นี่เพื่อแนบไฟล์</p>
+            <p class="text-[10px] text-slate-400 text-center mt-0.5">รองรับไฟล์ PDF เท่านั้น (ไม่เกิน 4MB, สูงสุด 3 ไฟล์)</p>
+          </div>
+
+          <!-- Previews container -->
+          <div id="new-cp-files-container" class="grid grid-cols-3 gap-2 mt-2">
+            <!-- Populated dynamically by JS -->
+          </div>
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+          <button type="button" onclick="app.closeNewCarePlanModal()" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2 px-4 rounded-lg text-xs font-bold transition border border-slate-200 dark:border-slate-700">ยกเลิก</button>
+          <button type="submit" class="bg-primary-900 dark:bg-secondary-500 hover:bg-primary-800 dark:hover:bg-secondary-600 text-white py-2 px-6 rounded-lg text-xs font-bold transition shadow-sm">บันทึกข้อมูล</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: IMAGE & DOCUMENT FILE LIGHTBOX VIEWER -->
+  <div id="modal-file-viewer" class="fixed inset-0 bg-slate-950/90 backdrop-blur-sm z-[1000] hidden flex flex-col items-center justify-center p-4 select-none">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+      <!-- Header -->
+      <div class="p-4 bg-slate-950/80 text-white flex justify-between items-center border-b border-slate-800">
+        <h3 class="font-bold text-xs sm:text-sm flex items-center gap-2">
+          <i class="fa-solid fa-eye text-emerald-400"></i>
+          <span id="file-viewer-title" class="truncate max-w-[200px] sm:max-w-md">พรีวิวเอกสาร Care plan</span>
+        </h3>
+        
+        <div class="flex items-center gap-3">
+          <!-- Zoom Controls (only shown for images) -->
+          <div id="file-viewer-zoom-controls" class="flex items-center bg-slate-850 rounded-lg overflow-hidden border border-slate-700">
+            <button onclick="app.zoomFileViewer(-0.2)" title="ย่อรูปภาพ" class="hover:bg-slate-700 text-white text-xs px-2.5 py-1.5 transition"><i class="fa-solid fa-minus"></i></button>
+            <button onclick="app.resetZoomFileViewer()" title="รีเซ็ตขนาด" class="hover:bg-slate-700 text-white text-[10px] px-2.5 py-1.5 border-x border-slate-700 transition">100%</button>
+            <button onclick="app.zoomFileViewer(0.2)" title="ขยายรูปภาพ" class="hover:bg-slate-700 text-white text-xs px-2.5 py-1.5 transition"><i class="fa-solid fa-plus"></i></button>
+          </div>
+          <!-- Close button -->
+          <button onclick="app.closeFileViewerModal()" class="text-slate-400 hover:text-white text-lg font-bold p-1 transition"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+      </div>
+      <!-- Body -->
+      <div class="flex-1 bg-slate-950/40 p-4 flex items-center justify-center overflow-auto min-h-[50vh] max-h-[70vh] relative" id="file-viewer-body-wrapper">
+        <div id="file-viewer-body" class="w-full h-full flex items-center justify-center">
+          <!-- Media will be injected dynamically -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Core Script Files -->
+  <!-- Leaflet Javascript for Map -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- Main Application Code logic -->
+  <script src="app.js"></script>
+
+</body>
+</html>
