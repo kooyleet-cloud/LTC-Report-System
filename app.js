@@ -1015,10 +1015,22 @@ class LTCApplication {
       if (adminContainer) adminContainer.style.display = '';
       if (cgContainer) cgContainer.style.display = 'none';
 
-      // 1. จำนวนผู้มีภาวะพึ่งพิง/Care plan (นับคนไม่ซ้ำกันที่มีการแนบไฟล์ใน photos)
-      const patientsWithCarePlan = this.state.visits.filter(v => v.photos && v.photos.length > 0);
-      const patientNames = patientsWithCarePlan.map(v => `${v.patientTitle}${v.patientFirstname} ${v.patientLastname}`);
-      const uniquePatients = [...new Set(patientNames)].length;
+      // 1. จำนวนผู้มีภาวะพึ่งพิง/Care plan (นับคนไม่ซ้ำกันที่มีการแนบไฟล์ PDF Care plan)
+      const seenPatients = new Set();
+      this.state.visits.forEach(v => {
+        const key = `${v.patientFirstname.trim().toLowerCase()}_${v.patientLastname.trim().toLowerCase()}`;
+        if (!seenPatients.has(key)) {
+          const hasPdf = this.state.visits.some(pv => 
+            pv.patientFirstname.trim().toLowerCase() === v.patientFirstname.trim().toLowerCase() &&
+            pv.patientLastname.trim().toLowerCase() === v.patientLastname.trim().toLowerCase() &&
+            (pv.photos || []).some(p => !this.getFileTypeFromBase64(p).isImage)
+          );
+          if (hasPdf) {
+            seenPatients.add(key);
+          }
+        }
+      });
+      const uniquePatients = seenPatients.size;
       const statTotalPatients = document.getElementById('stat-total-patients');
       if (statTotalPatients) statTotalPatients.textContent = uniquePatients;
 
@@ -1054,9 +1066,22 @@ class LTCApplication {
       const myUsername = this.state.currentUser ? this.state.currentUser.username : '';
       const myVisits = this.state.visits.filter(v => v.cgUsername === myUsername);
 
-      // 1. ผู้รับบริการในความดูแล (นับคนไม่ซ้ำจาก myVisits)
-      const myPatientNames = myVisits.map(v => `${v.patientTitle}${v.patientFirstname} ${v.patientLastname}`);
-      const uniqueMyPatients = [...new Set(myPatientNames)].length;
+      // 1. ผู้รับบริการในความดูแล (นับคนไม่ซ้ำจาก myVisits ที่มี PDF Care plan)
+      const mySeenPatients = new Set();
+      myVisits.forEach(v => {
+        const key = `${v.patientFirstname.trim().toLowerCase()}_${v.patientLastname.trim().toLowerCase()}`;
+        if (!mySeenPatients.has(key)) {
+          const hasPdf = this.state.visits.some(pv => 
+            pv.patientFirstname.trim().toLowerCase() === v.patientFirstname.trim().toLowerCase() &&
+            pv.patientLastname.trim().toLowerCase() === v.patientLastname.trim().toLowerCase() &&
+            (pv.photos || []).some(p => !this.getFileTypeFromBase64(p).isImage)
+          );
+          if (hasPdf) {
+            mySeenPatients.add(key);
+          }
+        }
+      });
+      const uniqueMyPatients = mySeenPatients.size;
       const statCgPatients = document.getElementById('stat-cg-patients');
       if (statCgPatients) statCgPatients.textContent = uniqueMyPatients;
 
@@ -2157,9 +2182,6 @@ ${record.requestedItems ? `📦 สิ่งของที่ต้องกา
         <td class="p-4">
           <div class="font-bold text-slate-900 dark:text-white">${patientName}</div>
           <div class="text-xs text-slate-400">อายุ ${v.patientAge} ปี</div>
-        </td>
-        <td class="p-4 font-medium text-slate-600 dark:text-slate-300">
-          ${this.formatThaiDate(v.visitDate)}
         </td>
         <td class="p-4 text-xs font-medium text-slate-600 dark:text-slate-300">
           ${cgFullName}
